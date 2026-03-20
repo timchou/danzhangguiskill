@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import sys
 from urllib import error, request
 
 
@@ -54,9 +53,9 @@ def create_order_draft(args):
     chat_content = _read_chat_content(args)
 
     if not base_url:
-        raise SystemExit("缺少 base_url。可传 --base-url 或环境变量 DAN_ERP_BASE_URL。")
+        raise SystemExit("缺少 API 地址。请在 Skill 配置里填写 DAN_ERP_BASE_URL，或显式传 --base-url。")
     if not token:
-        raise SystemExit("缺少 token。可传 --token 或环境变量 DAN_ERP_TOKEN。")
+        raise SystemExit("缺少 Token。请在 Skill 配置里填写 DAN_ERP_TOKEN，或显式传 --token。")
     if not chat_content:
         raise SystemExit("缺少聊天内容。可传 --chat-content 或 --chat-file。")
 
@@ -77,8 +76,8 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     create_parser = subparsers.add_parser("create-order-draft", help="创建订单草稿")
-    create_parser.add_argument("--base-url", default="", help="Dan ERP base URL")
-    create_parser.add_argument("--token", default="", help="商户 API token")
+    create_parser.add_argument("--base-url", default="", help="Dan ERP base URL，默认读取 DAN_ERP_BASE_URL")
+    create_parser.add_argument("--token", default="", help="商户 API token，默认读取 DAN_ERP_TOKEN")
     create_parser.add_argument("--chat-content", default="", help="聊天内容")
     create_parser.add_argument("--chat-file", default="", help="从文件读取聊天内容")
     create_parser.add_argument("--client-request-id", default="", help="调用方请求编号")

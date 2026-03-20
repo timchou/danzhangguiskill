@@ -2,6 +2,19 @@
 
 ## 通用约定
 
+### QClaw / OpenClaw 配置
+
+建议在 Skill 配置页直接填写这两个值：
+
+- `DAN_ERP_BASE_URL`
+  - ERP 服务地址
+  - 本地调试例子：`http://localhost:8000`
+  - 线上例子：`https://erp.example.com`
+- `DAN_ERP_TOKEN`
+  - 商户开放接口 token
+
+配置完成后，skill 脚本会自动读取这两个环境变量。
+
 ### Base URL
 
 - 本地开发环境：`http://localhost:8000`
@@ -192,8 +205,8 @@ token 无效：
 ### curl Example
 
 ```bash
-curl -X POST "http://localhost:8000/api/order-drafts/" \
-  -H "Authorization: Bearer merchant-api-token" \
+curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
+  -H "Authorization: Bearer ${DAN_ERP_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
     "chat_content": "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
@@ -205,12 +218,19 @@ curl -X POST "http://localhost:8000/api/order-drafts/" \
 ### Script Example
 
 ```bash
-python skills/dan-erp-skill/scripts/dan_erp_client.py create-order-draft \
-  --base-url "http://localhost:8000" \
-  --token "merchant-api-token" \
+python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --chat-content "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
   --client-request-id "req-001" \
   --client-name "crm-sync"
+```
+
+如果还没在 Skill 配置里填值，也可以显式传：
+
+```bash
+python {baseDir}/scripts/dan_erp_client.py create-order-draft \
+  --base-url "http://localhost:8000" \
+  --token "merchant-api-token" \
+  --chat-content "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒"
 ```
 
 ## 新接口补充模板
