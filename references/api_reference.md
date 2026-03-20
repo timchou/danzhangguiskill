@@ -39,12 +39,18 @@
 
 ### 给 QClaw 的结构化抽取要求
 
-QClaw 在调用这个 skill 时，不建议只把原文直接发给 ERP。
+QClaw 在调用这个 skill 时，不要只把原文直接发给 ERP。
 
 更推荐的方式是：
 
 1. 先从客户聊天内容里提取一组 `prefilled_fields`
 2. 再把 `chat_content + prefilled_fields + parse_context` 一起发给 ERP
+
+最低要求：
+
+- 不要省略 `prefilled_fields`
+- 如果一个字段都提取不出来，也要传 `prefilled_fields: {}`
+- 不要只提交 `chat_content`
 
 `prefilled_fields` 只建议使用这些键：
 
@@ -88,6 +94,19 @@ QClaw 在调用这个 skill 时，不建议只把原文直接发给 ERP。
     "unit": "<如果能判断>",
     "remark": "<如果能判断>"
   },
+  "parse_context": {
+    "source": "qclaw",
+    "mode": "partial_extract"
+  }
+}
+```
+
+如果没有提取出任何字段，也要保持这个结构：
+
+```json
+{
+  "chat_content": "<客户聊天原文>",
+  "prefilled_fields": {},
   "parse_context": {
     "source": "qclaw",
     "mode": "partial_extract"
@@ -213,6 +232,7 @@ POST /api/order-drafts/
   - 这些字段会被服务端当作预填槽位优先复用
   - 商品最终匹配仍由 Dan ERP 服务端完成，不要在这里伪造 SKU
   - 不能判断的字段直接省略，不要写 `null`
+  - 即使没有提取出任何字段，也建议显式传空对象 `{}`，不要省略这个键
 - `parse_context`
   - 对象，可选
   - 用来标记这批 `prefilled_fields` 的来源和模式

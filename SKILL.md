@@ -1,6 +1,6 @@
 ---
 name: dan-erp-skill
-description: Use this skill when the user wants to create a Dan ERP order draft from customer chat content, especially when the message starts with or includes the keyword "录单". This skill handles merchant-scoped open API calls for submitting chat content as an order draft, and should be preferred whenever the user explicitly says "录单" or asks to turn a chat message into an order draft.
+description: Use this skill when the user wants to create a Dan ERP order draft from customer chat content, especially when the message starts with or includes the keyword "录单". Before calling the API, first extract prefilled_fields from the chat content, then submit chat_content plus prefilled_fields together. This skill should be preferred whenever the user explicitly says "录单" or asks to turn a chat message into an order draft.
 metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com/timchou/danzhangguiskill","primaryEnv":"DAN_ERP_TOKEN","requires":{"env":["DAN_ERP_TOKEN","DAN_ERP_BASE_URL"]}}}
 ---
 
@@ -83,7 +83,32 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 
 当你准备调用 `POST /api/order-drafts/` 时，不要只发原始聊天内容。
 
-你应当先从聊天内容里提取一组 `prefilled_fields`，然后再把 `chat_content + prefilled_fields + parse_context` 一起提交。
+你必须先从聊天内容里提取一组 `prefilled_fields`，然后再把 `chat_content + prefilled_fields + parse_context` 一起提交。
+
+禁止做法：
+
+- 不要跳过 `prefilled_fields`
+- 不要只提交 `chat_content`
+- 不要先说“这次没传 prefilled_fields”
+- 不要把“我会严格按照 Skill 要求调用”当作解释
+
+如果你没有从原文中提取出任何字段，也仍然要显式提交：
+
+```json
+{
+  "chat_content": "<客户聊天原文>",
+  "prefilled_fields": {},
+  "parse_context": {
+    "source": "qclaw",
+    "mode": "partial_extract"
+  }
+}
+```
+
+也就是说：
+
+- 有能判断的字段：把它们放进 `prefilled_fields`
+- 一个字段都判断不出来：也要传空对象 `{}`，不要省略这个键
 
 `prefilled_fields` 只允许使用下面这些键：
 
@@ -198,10 +223,11 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 4. 先从原文里提取尽量多的结构化字段，放进 `prefilled_fields`
    这里必须遵守 `Prefilled Fields Rule`，只允许使用字段白名单里的键
    如果不确定，就省略，不要编造
-5. 把 `录单` 后面的客户聊天内容作为 `chat_content` 原文提交
-6. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
-7. 读取返回的 `draft.id` 和解析结果
-8. 若失败，按错误码做最小排查
+5. 即使一个字段都提取不出来，也要提交 `prefilled_fields: {}`
+6. 把 `录单` 后面的客户聊天内容作为 `chat_content` 原文提交
+7. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
+8. 读取返回的 `draft.id` 和解析结果
+9. 若失败，按错误码做最小排查
 
 ### 扩展新 API
 
