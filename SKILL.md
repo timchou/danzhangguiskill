@@ -1,6 +1,6 @@
 ---
 name: dan-erp-skill
-description: Use this skill when a user needs to operate Dan ERP through merchant-scoped open APIs, especially for creating order drafts from chat content, understanding token-based authentication, or extending the skill with newly added ERP endpoints. This skill provides the required request conventions, auth rules, endpoint usage, and update pattern for future APIs.
+description: Use this skill when the user wants to create a Dan ERP order draft from customer chat content, especially when the message starts with or includes the keyword "录单". This skill handles merchant-scoped open API calls for submitting chat content as an order draft, and should be preferred whenever the user explicitly says "录单" or asks to turn a chat message into an order draft.
 metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com/timchou/danzhangguiskill","primaryEnv":"DAN_ERP_TOKEN","requires":{"env":["DAN_ERP_TOKEN","DAN_ERP_BASE_URL"]}}}
 ---
 
@@ -18,12 +18,27 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 
 后续如果系统增加新的开放接口，也继续按这个 skill 的结构补充，不要另起一套说明。
 
+## Trigger Rule
+
+优先触发口径统一为：`录单`。
+
+也就是说，只要用户明确说了下面这类话，就应该优先使用这个 skill：
+
+- `录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒`
+- `录单`
+  然后下一行开始贴客户聊天内容
+- `请把下面聊天内容录单`
+- `把这段客户聊天生成订单草稿`
+
+如果只是普通闲聊，或者没有录单意图，不要用这个 skill。
+
 ## When To Use
 
 遇到下面这些需求时，用这个 skill：
 
-- 用户要通过机器人调用单掌柜 ERP 接口
-- 用户要把聊天内容下发到单掌柜，生成订单草稿
+- 用户消息里明确出现 `录单`
+- 用户要通过机器人调用 Dan ERP 接口生成订单草稿
+- 用户要把客户聊天内容下发到 Dan ERP，生成订单草稿
 - 用户要确认请求地址、认证头、请求体、返回体
 - 用户要排查 Dan ERP API 的鉴权或入参问题
 - 用户要把新的 Dan ERP API 补进同一个 skill
@@ -55,6 +70,7 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 不要在日志、回复、代码片段里回显完整 token
 - 只调用已经写在 `references/api_reference.md` 里的接口，不要臆造新接口
 - 优先使用 `scripts/dan_erp_client.py` 发请求，减少每次手写 HTTP 细节
+- 如果用户消息里有 `录单`，优先按“生成订单草稿”理解
 - 如果接口返回 401，优先检查 token 是否缺失、写错、商户是否停用
 - 如果接口返回 400，优先检查字段名、聊天内容长度、JSON 格式
 - 如果缺少配置，优先提示补齐 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`
@@ -75,7 +91,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Authorization: Bearer ${DAN_ERP_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "chat_content": "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
     "client_request_id": "req-001",
     "client_name": "crm-sync"
   }'
@@ -85,7 +101,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
-  --chat-content "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
+  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
@@ -96,12 +112,13 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 
 ### 创建草稿订单
 
-1. 读取 `references/api_reference.md`
-2. 确认当前要用的是“草稿订单下发 API”
+1. 识别用户消息里是否明确出现 `录单`
+2. 读取 `references/api_reference.md`
 3. 检查 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN` 是否已配置
-4. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
-5. 读取返回的 `draft.id` 和解析结果
-6. 若失败，按错误码做最小排查
+4. 把 `录单` 后面的客户聊天内容作为订单草稿原文提交
+5. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
+6. 读取返回的 `draft.id` 和解析结果
+7. 若失败，按错误码做最小排查
 
 ### 扩展新 API
 
@@ -119,5 +136,9 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 
 - `POST /api/order-drafts/`
   - 提交聊天内容，生成订单草稿
+
+推荐商家使用口径：
+
+- 需要生成订单草稿时，在客户聊天内容前加 `录单：`
 
 详细字段和返回示例见 [references/api_reference.md](references/api_reference.md)。

@@ -2,6 +2,28 @@
 
 ## 通用约定
 
+### 推荐使用口径
+
+为了让机器人更稳定地调用这个 skill，建议商家统一使用：
+
+```text
+录单：客户聊天内容
+```
+
+例如：
+
+```text
+录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒
+```
+
+如果是多行内容，也可以：
+
+```text
+录单
+张三 13800138000 上海市浦东新区测试路1号
+杨梅礼盒 2斤装 2盒
+```
+
 ### QClaw / OpenClaw 配置
 
 建议在 Skill 配置页直接填写这两个值：
@@ -82,7 +104,7 @@ POST /api/order-drafts/
 
 ```json
 {
-  "chat_content": "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+  "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
   "client_request_id": "req-001",
   "client_name": "crm-sync"
 }
@@ -93,6 +115,7 @@ POST /api/order-drafts/
 - `chat_content`
   - 字符串，推荐字段名
   - 聊天内容原文
+  - 建议保留 `录单：` 前缀
   - 长度至少 8 个字符
 - `source_raw_text`
   - 字符串，兼容字段名
@@ -209,7 +232,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Authorization: Bearer ${DAN_ERP_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "chat_content": "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
     "client_request_id": "req-001",
     "client_name": "crm-sync"
   }'
@@ -219,7 +242,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
-  --chat-content "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
+  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
@@ -230,7 +253,7 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --base-url "http://localhost:8000" \
   --token "merchant-api-token" \
-  --chat-content "张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒"
+  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒"
 ```
 
 ## 新接口补充模板
