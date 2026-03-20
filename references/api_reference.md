@@ -37,6 +37,64 @@
 
 配置完成后，skill 脚本会自动读取这两个环境变量。
 
+### 给 QClaw 的结构化抽取要求
+
+QClaw 在调用这个 skill 时，不建议只把原文直接发给 ERP。
+
+更推荐的方式是：
+
+1. 先从客户聊天内容里提取一组 `prefilled_fields`
+2. 再把 `chat_content + prefilled_fields + parse_context` 一起发给 ERP
+
+`prefilled_fields` 只建议使用这些键：
+
+- `recipient_name`
+- `recipient_phone`
+- `province`
+- `city`
+- `district`
+- `address_detail`
+- `receiver_address`
+- `product_text`
+- `spec_name`
+- `quantity`
+- `unit`
+- `remark`
+
+约束：
+
+- 不能判断的字段就省略，不要编造
+- 不要自己补 `sku_code`
+- `product_text` 只是客户原话里的商品文本，不代表已经匹配 ERP 商品
+- 地址能拆就拆；拆不出来时才传 `receiver_address`
+- `quantity` 尽量传数字；看不出数量时不要写默认值
+
+推荐让 QClaw 按下面这个固定结构构造请求体：
+
+```json
+{
+  "chat_content": "<客户聊天原文>",
+  "prefilled_fields": {
+    "recipient_name": "<如果能判断>",
+    "recipient_phone": "<如果能判断>",
+    "province": "<如果能判断>",
+    "city": "<如果能判断>",
+    "district": "<如果能判断>",
+    "address_detail": "<如果能判断>",
+    "receiver_address": "<如果能判断>",
+    "product_text": "<如果能判断>",
+    "spec_name": "<如果能判断>",
+    "quantity": "<如果能判断>",
+    "unit": "<如果能判断>",
+    "remark": "<如果能判断>"
+  },
+  "parse_context": {
+    "source": "qclaw",
+    "mode": "partial_extract"
+  }
+}
+```
+
 ### Base URL
 
 - 本地开发环境：`http://localhost:8000`
@@ -154,6 +212,7 @@ POST /api/order-drafts/
     - `remark`
   - 这些字段会被服务端当作预填槽位优先复用
   - 商品最终匹配仍由 Dan ERP 服务端完成，不要在这里伪造 SKU
+  - 不能判断的字段直接省略，不要写 `null`
 - `parse_context`
   - 对象，可选
   - 用来标记这批 `prefilled_fields` 的来源和模式

@@ -79,6 +79,65 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 如果接口返回 400，优先检查字段名、聊天内容长度、JSON 格式
 - 如果缺少配置，优先提示补齐 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`
 
+## Prefilled Fields Rule
+
+当你准备调用 `POST /api/order-drafts/` 时，不要只发原始聊天内容。
+
+你应当先从聊天内容里提取一组 `prefilled_fields`，然后再把 `chat_content + prefilled_fields + parse_context` 一起提交。
+
+`prefilled_fields` 只允许使用下面这些键：
+
+- `recipient_name`
+- `recipient_phone`
+- `province`
+- `city`
+- `district`
+- `address_detail`
+- `receiver_address`
+- `product_text`
+- `spec_name`
+- `quantity`
+- `unit`
+- `remark`
+
+强约束：
+
+- 如果字段不能从原文中较有把握地判断出来，就省略这个键
+- 不要写成 `null`
+- 不要输出字段白名单之外的键
+- 不要臆造 `sku_code`
+- `product_text` 只表示客户原话里的商品文本，不代表已经完成 ERP 商品匹配
+- 地址能拆就拆成 `province/city/district/address_detail`
+- 如果只能看出完整地址，允许只传 `receiver_address`
+- `quantity` 尽量传数字
+- 如果原文里看不出数量，就不要编造默认值
+
+固定请求体模板如下，调用时尽量贴合这个结构：
+
+```json
+{
+  "chat_content": "<客户聊天原文>",
+  "prefilled_fields": {
+    "recipient_name": "<如果能判断>",
+    "recipient_phone": "<如果能判断>",
+    "province": "<如果能判断>",
+    "city": "<如果能判断>",
+    "district": "<如果能判断>",
+    "address_detail": "<如果能判断>",
+    "receiver_address": "<如果能判断>",
+    "product_text": "<如果能判断>",
+    "spec_name": "<如果能判断>",
+    "quantity": "<如果能判断>",
+    "unit": "<如果能判断>",
+    "remark": "<如果能判断>"
+  },
+  "parse_context": {
+    "source": "qclaw",
+    "mode": "partial_extract"
+  }
+}
+```
+
 ## Quick Start
 
 调用前先准备：
@@ -137,6 +196,8 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 2. 读取 `references/api_reference.md`
 3. 检查 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN` 是否已配置
 4. 先从原文里提取尽量多的结构化字段，放进 `prefilled_fields`
+   这里必须遵守 `Prefilled Fields Rule`，只允许使用字段白名单里的键
+   如果不确定，就省略，不要编造
 5. 把 `录单` 后面的客户聊天内容作为 `chat_content` 原文提交
 6. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
 7. 读取返回的 `draft.id` 和解析结果
