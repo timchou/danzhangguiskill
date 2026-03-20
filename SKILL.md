@@ -14,6 +14,7 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 
 - 用商户专属 token 调用开放接口
 - 把聊天内容提交为订单草稿
+- 先从聊天内容里提取一部分结构化字段，再把 `chat_content + prefilled_fields` 一起提交
 - 通过内置脚本直接发起 API 请求
 
 后续如果系统增加新的开放接口，也继续按这个 skill 的结构补充，不要另起一套说明。
@@ -71,6 +72,9 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 只调用已经写在 `references/api_reference.md` 里的接口，不要臆造新接口
 - 优先使用 `scripts/dan_erp_client.py` 发请求，减少每次手写 HTTP 细节
 - 如果用户消息里有 `录单`，优先按“生成订单草稿”理解
+- 在调用 API 前，先尽量从原文里提取结构化字段，再放进 `prefilled_fields`
+- `prefilled_fields` 适合填写收件人、手机号、省市区、详细地址、商品原始文本、数量、备注
+- 不要臆造 SKU，也不要假装已经完成商户商品匹配；商品最终匹配仍由 Dan ERP 服务端完成
 - 如果接口返回 401，优先检查 token 是否缺失、写错、商户是否停用
 - 如果接口返回 400，优先检查字段名、聊天内容长度、JSON 格式
 - 如果缺少配置，优先提示补齐 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`
@@ -92,6 +96,22 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Content-Type: application/json" \
   -d '{
     "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "prefilled_fields": {
+      "recipient_name": "张三",
+      "recipient_phone": "13800138000",
+      "province": "上海市",
+      "city": "上海市",
+      "district": "浦东新区",
+      "address_detail": "测试路1号",
+      "product_text": "杨梅礼盒",
+      "spec_name": "2斤装",
+      "quantity": 2,
+      "unit": "盒"
+    },
+    "parse_context": {
+      "source": "qclaw",
+      "mode": "partial_extract"
+    },
     "client_request_id": "req-001",
     "client_name": "crm-sync"
   }'
@@ -102,6 +122,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
+  --prefilled-fields-json '{"recipient_name":"张三","recipient_phone":"13800138000","province":"上海市","city":"上海市","district":"浦东新区","address_detail":"测试路1号","product_text":"杨梅礼盒","spec_name":"2斤装","quantity":2,"unit":"盒"}' \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
@@ -115,10 +136,11 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 1. 识别用户消息里是否明确出现 `录单`
 2. 读取 `references/api_reference.md`
 3. 检查 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN` 是否已配置
-4. 把 `录单` 后面的客户聊天内容作为订单草稿原文提交
-5. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
-6. 读取返回的 `draft.id` 和解析结果
-7. 若失败，按错误码做最小排查
+4. 先从原文里提取尽量多的结构化字段，放进 `prefilled_fields`
+5. 把 `录单` 后面的客户聊天内容作为 `chat_content` 原文提交
+6. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
+7. 读取返回的 `draft.id` 和解析结果
+8. 若失败，按错误码做最小排查
 
 ### 扩展新 API
 

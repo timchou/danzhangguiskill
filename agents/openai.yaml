@@ -1,7 +1,7 @@
 interface:
   display_name: "Dan ERP Skill"
-  short_description: "通过商户 token 调用单掌柜开放接口"
-  default_prompt: "Use $dan-erp-skill to call Dan ERP open APIs with a merchant token."
+  short_description: "先提取录单字段，再通过商户 token 调用单掌柜开放接口"
+  default_prompt: "Use $dan-erp-skill to extract order draft fields from customer chat content and call Dan ERP open APIs with a merchant token."
 
 policy:
   allow_implicit_invocation: true

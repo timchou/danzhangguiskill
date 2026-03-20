@@ -105,6 +105,22 @@ POST /api/order-drafts/
 ```json
 {
   "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+  "prefilled_fields": {
+    "recipient_name": "张三",
+    "recipient_phone": "13800138000",
+    "province": "上海市",
+    "city": "上海市",
+    "district": "浦东新区",
+    "address_detail": "测试路1号",
+    "product_text": "杨梅礼盒",
+    "spec_name": "2斤装",
+    "quantity": 2,
+    "unit": "盒"
+  },
+  "parse_context": {
+    "source": "qclaw",
+    "mode": "partial_extract"
+  },
   "client_request_id": "req-001",
   "client_name": "crm-sync"
 }
@@ -120,6 +136,30 @@ POST /api/order-drafts/
 - `source_raw_text`
   - 字符串，兼容字段名
   - 如果传了 `chat_content`，优先取 `chat_content`
+- `prefilled_fields`
+  - 对象，可选
+  - 上游 agent 先提取出来的结构化字段
+  - 推荐传这些字段：
+    - `recipient_name`
+    - `recipient_phone`
+    - `province`
+    - `city`
+    - `district`
+    - `address_detail`
+    - `receiver_address`
+    - `product_text`
+    - `spec_name`
+    - `quantity`
+    - `unit`
+    - `remark`
+  - 这些字段会被服务端当作预填槽位优先复用
+  - 商品最终匹配仍由 Dan ERP 服务端完成，不要在这里伪造 SKU
+- `parse_context`
+  - 对象，可选
+  - 用来标记这批 `prefilled_fields` 的来源和模式
+  - 例如：
+    - `source: "qclaw"`
+    - `mode: "partial_extract"`
 - `client_request_id`
   - 字符串，可选
   - 调用方自己的请求编号
@@ -163,11 +203,33 @@ POST /api/order-drafts/
     "created_at": "2026-03-20T12:34:56+08:00",
     "parsed_result": {
       "provider": "deepseek",
-      "model": "deepseek-chat"
+      "model": "deepseek-chat",
+      "parse_mode": "partial_ai",
+      "prefilled_fields": {
+        "receiver_name": "张三",
+        "receiver_mobile": "13800138000",
+        "province": "上海市",
+        "city": "上海市",
+        "district": "浦东新区",
+        "product_name": "杨梅礼盒",
+        "spec_name": "2斤装",
+        "quantity": "2",
+        "unit": "盒"
+      }
     }
   }
 }
 ```
+
+说明：
+
+- 如果 `prefilled_fields` 已经很完整，服务端可能直接复用这些字段，不再做整段 AI 重跑
+- 如果 `prefilled_fields` 只补了一部分，服务端会优先保留这些字段，并让 AI 重点补缺失字段
+- `parsed_result.parse_mode` 常见值：
+  - `prefilled_only`
+  - `partial_ai`
+  - `full_ai`
+  - `rules`
 
 ### Failure Responses
 
@@ -233,6 +295,22 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Content-Type: application/json" \
   -d '{
     "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "prefilled_fields": {
+      "recipient_name": "张三",
+      "recipient_phone": "13800138000",
+      "province": "上海市",
+      "city": "上海市",
+      "district": "浦东新区",
+      "address_detail": "测试路1号",
+      "product_text": "杨梅礼盒",
+      "spec_name": "2斤装",
+      "quantity": 2,
+      "unit": "盒"
+    },
+    "parse_context": {
+      "source": "qclaw",
+      "mode": "partial_extract"
+    },
     "client_request_id": "req-001",
     "client_name": "crm-sync"
   }'
@@ -243,6 +321,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
+  --prefilled-fields-json '{"recipient_name":"张三","recipient_phone":"13800138000","province":"上海市","city":"上海市","district":"浦东新区","address_detail":"测试路1号","product_text":"杨梅礼盒","spec_name":"2斤装","quantity":2,"unit":"盒"}' \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```

@@ -19,6 +19,27 @@ def _read_chat_content(args):
     return ""
 
 
+def _read_prefilled_fields(args):
+    raw_json = (args.prefilled_fields_json or "").strip()
+    if raw_json:
+        try:
+            payload = json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            raise SystemExit("prefilled_fields_json 不是合法 JSON。") from exc
+    elif args.prefilled_fields_file:
+        with open(args.prefilled_fields_file, "r", encoding="utf-8") as handle:
+            try:
+                payload = json.load(handle)
+            except json.JSONDecodeError as exc:
+                raise SystemExit("prefilled_fields_file 里的内容不是合法 JSON。") from exc
+    else:
+        return {}
+
+    if not isinstance(payload, dict):
+        raise SystemExit("prefilled_fields 必须是 JSON 对象。")
+    return payload
+
+
 def _build_headers(token):
     return {
         "Authorization": f"Bearer {token}",
@@ -51,6 +72,7 @@ def create_order_draft(args):
     base_url = _resolve_value(args.base_url, "DAN_ERP_BASE_URL").rstrip("/")
     token = _resolve_value(args.token, "DAN_ERP_TOKEN")
     chat_content = _read_chat_content(args)
+    prefilled_fields = _read_prefilled_fields(args)
 
     if not base_url:
         raise SystemExit("缺少 API 地址。请在 Skill 配置里填写 DAN_ERP_BASE_URL，或显式传 --base-url。")
@@ -64,6 +86,11 @@ def create_order_draft(args):
         token=token,
         payload={
             "chat_content": chat_content,
+            "prefilled_fields": prefilled_fields,
+            "parse_context": {
+                "source": (args.parse_source or "qclaw").strip(),
+                "mode": (args.parse_mode or "partial_extract").strip(),
+            },
             "client_request_id": (args.client_request_id or "").strip(),
             "client_name": (args.client_name or "").strip(),
         },
@@ -80,6 +107,10 @@ def build_parser():
     create_parser.add_argument("--token", default="", help="商户 API token，默认读取 DAN_ERP_TOKEN")
     create_parser.add_argument("--chat-content", default="", help="聊天内容")
     create_parser.add_argument("--chat-file", default="", help="从文件读取聊天内容")
+    create_parser.add_argument("--prefilled-fields-json", default="", help="预解析字段 JSON")
+    create_parser.add_argument("--prefilled-fields-file", default="", help="从文件读取预解析字段 JSON")
+    create_parser.add_argument("--parse-source", default="qclaw", help="预解析来源，默认 qclaw")
+    create_parser.add_argument("--parse-mode", default="partial_extract", help="预解析模式，默认 partial_extract")
     create_parser.add_argument("--client-request-id", default="", help="调用方请求编号")
     create_parser.add_argument("--client-name", default="", help="调用方系统名")
     create_parser.set_defaults(handler=create_order_draft)
