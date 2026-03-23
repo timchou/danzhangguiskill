@@ -74,6 +74,8 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 如果用户消息里有 `录单`，优先按“生成订单草稿”理解
 - 在调用 API 前，先尽量从原文里提取结构化字段，再放进 `prefilled_fields`
 - `prefilled_fields` 适合填写收件人、手机号、省市区、详细地址、商品原始文本、数量、备注
+- 如果原文里明显包含多笔订单，不要把单个收件人、单个手机号、单个详细地址硬塞进整段消息的 `prefilled_fields`
+- 多单场景下，`prefilled_fields` 更适合只放共享商品信息、数量口径、通用备注
 - 不要臆造 SKU，也不要假装已经完成商户商品匹配；商品最终匹配仍由 Dan ERP 服务端完成
 - 如果接口返回 401，优先检查 token 是否缺失、写错、商户是否停用
 - 如果接口返回 400，优先检查字段名、聊天内容长度、JSON 格式
@@ -136,6 +138,7 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 如果只能看出完整地址，允许只传 `receiver_address`
 - `quantity` 尽量传数字
 - 如果原文里看不出数量，就不要编造默认值
+- 如果原文里已经是多笔订单，不要把某一笔的 `recipient_name / recipient_phone / address_detail` 当成整段共享字段
 
 固定请求体模板如下，调用时尽量贴合这个结构：
 
@@ -179,18 +182,12 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Authorization: Bearer ${DAN_ERP_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "chat_content": "录单：帮我发2份A10套餐，两个地址各寄一份：江苏省常熟市珠江路10号，王先生，13913600000；江苏省常熟市和谐路8号，李先生，13913600001",
     "prefilled_fields": {
-      "recipient_name": "张三",
-      "recipient_phone": "13800138000",
-      "province": "上海市",
-      "city": "上海市",
-      "district": "浦东新区",
-      "address_detail": "测试路1号",
-      "product_text": "杨梅礼盒",
-      "spec_name": "2斤装",
+      "product_text": "A10套餐",
+      "spec_name": "A10",
       "quantity": 2,
-      "unit": "盒"
+      "unit": "份"
     },
     "parse_context": {
       "source": "qclaw",
@@ -205,11 +202,17 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
-  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
-  --prefilled-fields-json '{"recipient_name":"张三","recipient_phone":"13800138000","province":"上海市","city":"上海市","district":"浦东新区","address_detail":"测试路1号","product_text":"杨梅礼盒","spec_name":"2斤装","quantity":2,"unit":"盒"}' \
+  --chat-content "录单：帮我发2份A10套餐，两个地址各寄一份：江苏省常熟市珠江路10号，王先生，13913600000；江苏省常熟市和谐路8号，李先生，13913600001" \
+  --prefilled-fields-json '{"product_text":"A10套餐","spec_name":"A10","quantity":2,"unit":"份"}' \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
+
+多单时要点：
+
+- `prefilled_fields` 尽量只放共享商品信息，不要把某一单的收件人、手机号、地址塞进去
+- 返回结果优先看 `drafts` 数组和 `draft_count`
+- 如果只有 1 条草稿，接口才可能额外返回 `draft`
 
 如果已经在 Skill 配置里填好 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`，脚本不需要再传 `--base-url` 和 `--token`。
 
@@ -226,7 +229,9 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 5. 即使一个字段都提取不出来，也要提交 `prefilled_fields: {}`
 6. 把 `录单` 后面的客户聊天内容作为 `chat_content` 原文提交
 7. 优先用 `scripts/dan_erp_client.py` 或标准 HTTP 请求发起调用
-8. 读取返回的 `draft.id` 和解析结果
+8. 优先读取返回里的 `drafts` 数组和 `draft_count`
+   如果只有 1 条，接口可能额外返回 `draft`
+   不要只按单个 `draft.id` 理解结果
 9. 若失败，按错误码做最小排查
 
 ### 扩展新 API
@@ -244,7 +249,7 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 当前已上线接口只有一个：
 
 - `POST /api/order-drafts/`
-  - 提交聊天内容，生成订单草稿
+  - 提交聊天内容，生成一条或多条订单草稿
 
 推荐商家使用口径：
 

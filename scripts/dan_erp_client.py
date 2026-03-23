@@ -95,7 +95,17 @@ def create_order_draft(args):
             "client_name": (args.client_name or "").strip(),
         },
     )
-    print(json.dumps({"status_code": status_code, "response": payload}, ensure_ascii=False, indent=2))
+    drafts = payload.get("drafts") or []
+    draft = payload.get("draft") or {}
+    summary = {
+        "status_code": status_code,
+        "ok": payload.get("ok"),
+        "draft_count": payload.get("draft_count", len(drafts) or (1 if draft else 0)),
+        "draft_ids": [item.get("id") for item in drafts if isinstance(item, dict)],
+    }
+    if not summary["draft_ids"] and isinstance(draft, dict) and draft.get("id"):
+        summary["draft_ids"] = [draft.get("id")]
+    print(json.dumps({"summary": summary, "response": payload}, ensure_ascii=False, indent=2))
 
 
 def build_parser():

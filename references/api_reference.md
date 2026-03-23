@@ -173,7 +173,7 @@ POST /api/order-drafts/
 
 ### 用途
 
-把外部系统里的聊天内容下发给 Dan ERP，生成一条订单草稿，效果等同于后台页面 `/order-drafts/create/` 的“聊天识别创建草稿”。
+把外部系统里的聊天内容下发给 Dan ERP，生成一条或多条订单草稿，效果等同于后台页面 `/order-drafts/create/` 的“聊天识别创建草稿”。
 
 ### Request Body
 
@@ -229,7 +229,8 @@ POST /api/order-drafts/
     - `quantity`
     - `unit`
     - `remark`
-  - 这些字段会被服务端当作预填槽位优先复用
+  - 单单场景下，这些字段会被服务端当作预填槽位优先复用
+  - 多单场景下，这些字段只适合放共享商品信息或通用备注，不要把单个收件人、手机号、地址硬塞给整段多单聊天
   - 商品最终匹配仍由 Dan ERP 服务端完成，不要在这里伪造 SKU
   - 不能判断的字段直接省略，不要写 `null`
   - 即使没有提取出任何字段，也建议显式传空对象 `{}`，不要省略这个键
@@ -262,53 +263,74 @@ POST /api/order-drafts/
 {
   "ok": true,
   "merchant_code": "api-demo",
-  "draft": {
-    "id": 12,
-    "source_type": "api",
-    "parse_status": "parsed",
-    "confidence_score": "0.93",
-    "customer_name": "张三",
-    "receiver_name": "张三",
-    "receiver_mobile": "13800138000",
-    "receiver_address": "上海市浦东新区测试路 1 号",
-    "province": "上海市",
-    "city": "上海市",
-    "district": "浦东新区",
-    "product_name": "杨梅礼盒",
-    "spec_name": "2斤装",
-    "quantity": "2",
-    "unit": "盒",
-    "remark": "尽快发货",
-    "created_at": "2026-03-20T12:34:56+08:00",
-    "parsed_result": {
-      "provider": "deepseek",
-      "model": "deepseek-chat",
-      "parse_mode": "partial_ai",
-      "prefilled_fields": {
-        "receiver_name": "张三",
-        "receiver_mobile": "13800138000",
-        "province": "上海市",
-        "city": "上海市",
-        "district": "浦东新区",
-        "product_name": "杨梅礼盒",
-        "spec_name": "2斤装",
-        "quantity": "2",
-        "unit": "盒"
+  "draft_count": 2,
+  "drafts": [
+    {
+      "id": 12,
+      "source_type": "api",
+      "parse_status": "parsed",
+      "customer_name": "张三",
+      "receiver_name": "张三",
+      "receiver_mobile": "13800138000",
+      "receiver_address": "测试路 1 号",
+      "province": "上海市",
+      "city": "上海市",
+      "district": "浦东新区",
+      "product_name": "杨梅礼盒",
+      "spec_name": "2斤装",
+      "quantity": "1",
+      "unit": "盒",
+      "remark": "",
+      "created_at": "2026-03-23T12:34:56+08:00",
+      "parsed_result": {
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "parse_mode": "partial_ai",
+        "orders_count": 2,
+        "order_index": 1
+      }
+    },
+    {
+      "id": 13,
+      "source_type": "api",
+      "parse_status": "parsed",
+      "customer_name": "李四",
+      "receiver_name": "李四",
+      "receiver_mobile": "13900139000",
+      "receiver_address": "和谐路 8 号",
+      "province": "江苏省",
+      "city": "苏州市",
+      "district": "常熟市",
+      "product_name": "杨梅礼盒",
+      "spec_name": "2斤装",
+      "quantity": "1",
+      "unit": "盒",
+      "remark": "",
+      "created_at": "2026-03-23T12:34:56+08:00",
+      "parsed_result": {
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "parse_mode": "partial_ai",
+        "orders_count": 2,
+        "order_index": 2
       }
     }
-  }
+  ]
 }
 ```
 
 说明：
 
+- 当前返回结构以 `drafts` 数组和 `draft_count` 为主
+- 如果只生成 1 条草稿，服务端会额外兼容返回 `draft`
+- 不要再依赖 `confidence_score`，这个字段已经移除
+- 订单草稿创建现在以 AI 结果为准；如果 AI 识别失败，接口会直接返回错误，不再自动回退本地规则解析
 - 如果 `prefilled_fields` 已经很完整，服务端可能直接复用这些字段，不再做整段 AI 重跑
 - 如果 `prefilled_fields` 只补了一部分，服务端会优先保留这些字段，并让 AI 重点补缺失字段
 - `parsed_result.parse_mode` 常见值：
   - `prefilled_only`
   - `partial_ai`
   - `full_ai`
-  - `rules`
 
 ### Failure Responses
 
@@ -373,14 +395,8 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
   -H "Authorization: Bearer ${DAN_ERP_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "chat_content": "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒",
+    "chat_content": "录单：帮我发2份杨梅礼盒2斤装，两个地址各寄一份：上海市浦东新区测试路1号，张三，13800138000；江苏省常熟市和谐路8号，李四，13900139000",
     "prefilled_fields": {
-      "recipient_name": "张三",
-      "recipient_phone": "13800138000",
-      "province": "上海市",
-      "city": "上海市",
-      "district": "浦东新区",
-      "address_detail": "测试路1号",
       "product_text": "杨梅礼盒",
       "spec_name": "2斤装",
       "quantity": 2,
@@ -399,8 +415,8 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
-  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒" \
-  --prefilled-fields-json '{"recipient_name":"张三","recipient_phone":"13800138000","province":"上海市","city":"上海市","district":"浦东新区","address_detail":"测试路1号","product_text":"杨梅礼盒","spec_name":"2斤装","quantity":2,"unit":"盒"}' \
+  --chat-content "录单：帮我发2份杨梅礼盒2斤装，两个地址各寄一份：上海市浦东新区测试路1号，张三，13800138000；江苏省常熟市和谐路8号，李四，13900139000" \
+  --prefilled-fields-json '{"product_text":"杨梅礼盒","spec_name":"2斤装","quantity":2,"unit":"盒"}' \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
@@ -411,7 +427,7 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --base-url "http://localhost:8000" \
   --token "merchant-api-token" \
-  --chat-content "录单：张三 13800138000 上海市浦东新区测试路1号 杨梅礼盒 2斤装 2盒"
+  --chat-content "录单：帮我发2份杨梅礼盒2斤装，两个地址各寄一份：上海市浦东新区测试路1号，张三，13800138000；江苏省常熟市和谐路8号，李四，13900139000"
 ```
 
 ## 新接口补充模板
