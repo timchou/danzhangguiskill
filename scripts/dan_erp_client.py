@@ -5,9 +5,18 @@ import json
 import os
 from urllib import error, request
 
+DEFAULT_BASE_URL = "http://localhost:8000"
+
 
 def _resolve_value(cli_value, env_name):
     return (cli_value or os.environ.get(env_name, "")).strip()
+
+
+def _resolve_base_url(cli_value):
+    value = _resolve_value(cli_value, "DAN_ERP_BASE_URL")
+    if value:
+        return value.rstrip("/")
+    return DEFAULT_BASE_URL
 
 
 def _read_chat_content(args):
@@ -69,13 +78,11 @@ def _send_json_request(*, url, token, payload):
 
 
 def create_order_draft(args):
-    base_url = _resolve_value(args.base_url, "DAN_ERP_BASE_URL").rstrip("/")
+    base_url = _resolve_base_url(args.base_url)
     token = _resolve_value(args.token, "DAN_ERP_TOKEN")
     chat_content = _read_chat_content(args)
     prefilled_fields = _read_prefilled_fields(args)
 
-    if not base_url:
-        raise SystemExit("缺少 API 地址。请在 Skill 配置里填写 DAN_ERP_BASE_URL，或显式传 --base-url。")
     if not token:
         raise SystemExit("缺少 Token。请在 Skill 配置里填写 DAN_ERP_TOKEN，或显式传 --token。")
     if not chat_content:
@@ -113,7 +120,7 @@ def build_parser():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     create_parser = subparsers.add_parser("create-order-draft", help="创建订单草稿")
-    create_parser.add_argument("--base-url", default="", help="Dan ERP base URL，默认读取 DAN_ERP_BASE_URL")
+    create_parser.add_argument("--base-url", default="", help="Dan ERP base URL，默认读取 DAN_ERP_BASE_URL，未配置时回退到 http://localhost:8000")
     create_parser.add_argument("--token", default="", help="商户 API token，默认读取 DAN_ERP_TOKEN")
     create_parser.add_argument("--chat-content", default="", help="聊天内容")
     create_parser.add_argument("--chat-file", default="", help="从文件读取聊天内容")

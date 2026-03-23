@@ -1,7 +1,7 @@
 ---
 name: dan-erp-skill
 description: Use this skill when the user wants to create a Dan ERP order draft from customer chat content, especially when the message starts with or includes the keyword "录单". Before calling the API, first extract prefilled_fields from the chat content, then submit chat_content plus prefilled_fields together. This skill should be preferred whenever the user explicitly says "录单" or asks to turn a chat message into an order draft.
-metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com/timchou/danzhangguiskill","primaryEnv":"DAN_ERP_TOKEN","requires":{"env":["DAN_ERP_TOKEN","DAN_ERP_BASE_URL"]}}}
+metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com/timchou/danzhangguiskill","primaryEnv":"DAN_ERP_TOKEN","requires":{"env":["DAN_ERP_TOKEN"]}}}
 ---
 
 # Dan ERP Skill
@@ -50,18 +50,22 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 
 这个 skill 现在支持在 QClaw / OpenClaw 的 Skill 配置页里直接配置。
 
-需要配置两个值：
+OpenClaw 当前这个 Skill 配置页，实际上只会给 `primaryEnv` 渲染一个密码框，所以这里正常情况下只能直接填写 1 个值：
 
-- `DAN_ERP_BASE_URL`
-  - 例如本地调试：`http://localhost:8000`
-  - 例如线上环境：`https://erp.example.com`
 - `DAN_ERP_TOKEN`
   - 商户自己的开放接口 token
 
+`DAN_ERP_BASE_URL` 仍然支持，但不是通过当前这个配置页单独渲染出来：
+
+- 未配置时，脚本默认回退到 `http://localhost:8000`
+- 如果 ERP 不在本机，再通过环境变量或命令参数覆盖：
+  - 环境变量：`DAN_ERP_BASE_URL=https://erp.example.com`
+  - 命令参数：`--base-url https://erp.example.com`
+
 推荐配置方式：
 
-- 在 Skill 管理页里给 `dan-erp-skill` 填 `API 地址` 和 `Token`
-- 配好后，机器人后续调用就不需要每次再问用户
+- 本机联调：只在 Skill 管理页里填 `Token`
+- 非本机 ERP：额外在 skill 运行环境里设置 `DAN_ERP_BASE_URL`
 
 ## Working Rules
 
@@ -73,13 +77,13 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 优先使用 `scripts/dan_erp_client.py` 发请求，减少每次手写 HTTP 细节
 - 如果用户消息里有 `录单`，优先按“生成订单草稿”理解
 - 在调用 API 前，先尽量从原文里提取结构化字段，再放进 `prefilled_fields`
-- `prefilled_fields` 适合填写收件人、手机号、省市区、详细地址、商品原始文本、数量、备注
+- `prefilled_fields` 适合填写收件人、手机号、省市区、详细地址、商品原始文本、数量、备注、是否已付款
 - 如果原文里明显包含多笔订单，不要把单个收件人、单个手机号、单个详细地址硬塞进整段消息的 `prefilled_fields`
 - 多单场景下，`prefilled_fields` 更适合只放共享商品信息、数量口径、通用备注
 - 不要臆造 SKU，也不要假装已经完成商户商品匹配；商品最终匹配仍由 Dan ERP 服务端完成
 - 如果接口返回 401，优先检查 token 是否缺失、写错、商户是否停用
 - 如果接口返回 400，优先检查字段名、聊天内容长度、JSON 格式
-- 如果缺少配置，优先提示补齐 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`
+- 如果缺少配置，优先检查 `DAN_ERP_TOKEN`；`DAN_ERP_BASE_URL` 在本机默认是 `http://localhost:8000`
 
 ## Prefilled Fields Rule
 
@@ -126,6 +130,7 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - `quantity`
 - `unit`
 - `remark`
+- `is_paid`
 
 强约束：
 
@@ -138,6 +143,7 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 - 如果只能看出完整地址，允许只传 `receiver_address`
 - `quantity` 尽量传数字
 - 如果原文里看不出数量，就不要编造默认值
+- 如果原文里明确写了 `已付款 / 已付 / 已转账 / 已支付` 这类表达，可以传 `is_paid: true`
 - 如果原文里已经是多笔订单，不要把某一笔的 `recipient_name / recipient_phone / address_detail` 当成整段共享字段
 
 固定请求体模板如下，调用时尽量贴合这个结构：
@@ -157,7 +163,8 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
     "spec_name": "<如果能判断>",
     "quantity": "<如果能判断>",
     "unit": "<如果能判断>",
-    "remark": "<如果能判断>"
+    "remark": "<如果能判断>",
+    "is_paid": true
   },
   "parse_context": {
     "source": "qclaw",
@@ -170,10 +177,12 @@ metadata: {"openclaw":{"skillKey":"dan-erp-skill","homepage":"https://github.com
 
 调用前先准备：
 
-- `DAN_ERP_BASE_URL`
-  - 例如本地开发环境：`http://localhost:8000`
 - `DAN_ERP_TOKEN`
   - 每个商户单独一份
+
+如果没单独配置 `DAN_ERP_BASE_URL`，脚本会默认请求本机：
+
+- `http://localhost:8000`
 
 标准调用方式：
 
@@ -187,7 +196,8 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
       "product_text": "A10套餐",
       "spec_name": "A10",
       "quantity": 2,
-      "unit": "份"
+      "unit": "份",
+      "is_paid": true
     },
     "parse_context": {
       "source": "qclaw",
@@ -203,7 +213,7 @@ curl -X POST "${DAN_ERP_BASE_URL}/api/order-drafts/" \
 ```bash
 python {baseDir}/scripts/dan_erp_client.py create-order-draft \
   --chat-content "录单：帮我发2份A10套餐，两个地址各寄一份：江苏省常熟市珠江路10号，王先生，13913600000；江苏省常熟市和谐路8号，李先生，13913600001" \
-  --prefilled-fields-json '{"product_text":"A10套餐","spec_name":"A10","quantity":2,"unit":"份"}' \
+  --prefilled-fields-json '{"product_text":"A10套餐","spec_name":"A10","quantity":2,"unit":"份","is_paid":true}' \
   --client-request-id "req-001" \
   --client-name "crm-sync"
 ```
@@ -214,7 +224,9 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 - 返回结果优先看 `drafts` 数组和 `draft_count`
 - 如果只有 1 条草稿，接口才可能额外返回 `draft`
 
-如果已经在 Skill 配置里填好 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN`，脚本不需要再传 `--base-url` 和 `--token`。
+如果已经在 Skill 配置里填好 `DAN_ERP_TOKEN`，而且 ERP 就跑在本机 `http://localhost:8000`，脚本不需要再传 `--base-url` 和 `--token`。
+
+如果 ERP 不在本机，再额外通过环境变量或 `--base-url` 覆盖。
 
 ## Workflow
 
@@ -222,7 +234,7 @@ python {baseDir}/scripts/dan_erp_client.py create-order-draft \
 
 1. 识别用户消息里是否明确出现 `录单`
 2. 读取 `references/api_reference.md`
-3. 检查 `DAN_ERP_BASE_URL` 和 `DAN_ERP_TOKEN` 是否已配置
+3. 检查 `DAN_ERP_TOKEN` 是否已配置；`DAN_ERP_BASE_URL` 未配置时默认走 `http://localhost:8000`
 4. 先从原文里提取尽量多的结构化字段，放进 `prefilled_fields`
    这里必须遵守 `Prefilled Fields Rule`，只允许使用字段白名单里的键
    如果不确定，就省略，不要编造

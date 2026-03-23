@@ -26,16 +26,19 @@
 
 ### QClaw / OpenClaw 配置
 
-建议在 Skill 配置页直接填写这两个值：
+OpenClaw 当前这个 Skill 配置页，默认只会给 skill 的 `primaryEnv` 渲染一个密码框。
 
-- `DAN_ERP_BASE_URL`
-  - ERP 服务地址
-  - 本地调试例子：`http://localhost:8000`
-  - 线上例子：`https://erp.example.com`
+对这个 skill 来说，当前能直接在配置页里填写的是：
+
 - `DAN_ERP_TOKEN`
   - 商户开放接口 token
 
-配置完成后，skill 脚本会自动读取这两个环境变量。
+`DAN_ERP_BASE_URL` 仍然支持，但需要按下面的规则处理：
+
+- 如果没配置，脚本默认回退到：`http://localhost:8000`
+- 如果 ERP 不在本机，再通过环境变量或命令参数覆盖：
+  - `DAN_ERP_BASE_URL=https://erp.example.com`
+  - `--base-url https://erp.example.com`
 
 ### 给 QClaw 的结构化抽取要求
 
@@ -66,6 +69,7 @@ QClaw 在调用这个 skill 时，不要只把原文直接发给 ERP。
 - `quantity`
 - `unit`
 - `remark`
+- `is_paid`
 
 约束：
 
@@ -74,6 +78,7 @@ QClaw 在调用这个 skill 时，不要只把原文直接发给 ERP。
 - `product_text` 只是客户原话里的商品文本，不代表已经匹配 ERP 商品
 - 地址能拆就拆；拆不出来时才传 `receiver_address`
 - `quantity` 尽量传数字；看不出数量时不要写默认值
+- 如果原文里明确有 `已付款 / 已付 / 已转账 / 已支付`，可以传 `is_paid: true`
 
 推荐让 QClaw 按下面这个固定结构构造请求体：
 
@@ -92,7 +97,8 @@ QClaw 在调用这个 skill 时，不要只把原文直接发给 ERP。
     "spec_name": "<如果能判断>",
     "quantity": "<如果能判断>",
     "unit": "<如果能判断>",
-    "remark": "<如果能判断>"
+    "remark": "<如果能判断>",
+    "is_paid": true
   },
   "parse_context": {
     "source": "qclaw",
@@ -118,6 +124,8 @@ QClaw 在调用这个 skill 时，不要只把原文直接发给 ERP。
 
 - 本地开发环境：`http://localhost:8000`
 - 生产环境：由部署域名决定，例如 `https://你的域名`
+
+如果 skill 运行在装了 Dan ERP 的同一台机器上，而且没有单独配置 `DAN_ERP_BASE_URL`，脚本会默认使用本地这个地址。
 
 ### 认证
 
@@ -229,6 +237,7 @@ POST /api/order-drafts/
     - `quantity`
     - `unit`
     - `remark`
+    - `is_paid`
   - 单单场景下，这些字段会被服务端当作预填槽位优先复用
   - 多单场景下，这些字段只适合放共享商品信息或通用备注，不要把单个收件人、手机号、地址硬塞给整段多单聊天
   - 商品最终匹配仍由 Dan ERP 服务端完成，不要在这里伪造 SKU
